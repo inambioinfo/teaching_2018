@@ -1,0 +1,59 @@
+
+Day 3 Exercise
+===================================
+
+```{r, echo = FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+    error = FALSE,
+    message = FALSE,
+    warning = FALSE)
+options(width = 110)
+```
+
+
+In this exercise, we use a common gene expression dataset for acute
+lymphoblastic leukemia (ALL) and acute myeloid leukemia (AML) to practically
+implement the concepts taught during this part of the lecture. This data has
+gene expression values from 72 samples (ALL = 47 and AML = 25) for 7129 genes.
+
+The expression matrix is [ALLcancerdata.txt](ALLcancerdata.txt).
+
+There is also a file containing sample annotations: [ALLannotation.txt](ALLannotation.txt)
+
+- Samples: These are the patient sample numbers/IDs.
+- ALL.AML: Type of tumor, whether the patient had acute myeloid leukemia (AML)
+  or acute lymphoblastic leukemia (ALL).
+- BM.PB: Whether the sample was taken from bone marrow (BM) or from peripheral
+  blood (PB).
+- T.B.cell: ALL arises from two different types of lymphocytes (T-cell and
+  B-cell). This specifies which for the ALL patients; it is NA for the AML
+  samples.
+
+What you need to do for this exercise is:
+
+
+1. read the expression matrix and the annotation table. For the annotation, we
+   only use "ALL.AML" annotation while remove all the other threes (or you can
+   keep all annotations if you want to try). Try to process and clean the
+   expression matrix and the annotation data frame as you did on Tuesday.
+
+2. There are still quite a lot of negative values in it (bad data points from the microarray). You need
+ to process the matrix to remove genes with too many negative values and also too
+ many small values.
+     + fix the lowest and highest values to 100 and 16000 respectively
+     + remove genes if max/min <= 5 or max - min <= 500
+     + perform a log10() transformation on the original matrix. Before doing this, you can first 
+        check the distribution of the matrix before and after log10 transformation.
+
+With the log10-transformed matrix, you can perform following analysis:
+
+- PCA analysis and use different colors for AML and ALL samples.
+- perfrom k-means clustering with 2,3,4 groups and compare to AML/ALL
+  annotation.
+- make heatmap with the complete matrix with AML/ALL as top annotation (use
+  ComplexHeatmap package)
+- make heatmap with top 1000 genes with highest variance/IQR/cv (which heatmap
+  is better in sense of separating AML/ALL samples?)
+
+

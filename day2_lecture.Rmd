@@ -1,0 +1,435 @@
+---
+title: "Day 2"
+author: Zuguang Gu
+date: Dec 4, 2018
+output:
+  ioslides_presentation:
+    widescreen: true
+    smaller: true
+    mathjax: default
+---
+
+## Outline
+
+- Basic statistical analysis
+    + descriptive statistics
+    + hypothesis test
+
+- We first introduce the concept, then we will practise with a real dataset
+
+## Descriptive Statistics
+
+Statistics that describe your data
+
+- summarize the data and turn data into information
+- it is basically the first thing you need to do when you have nothing know for the data
+
+## Numeric data 
+
+- measurement of locations
+    + mean
+    + median
+    + quantiles/percentiles
+
+mean: $\frac{1}{n}\sum_i^n x_i$
+
+---
+
+median and quantiles are special scenarios of percentiles.
+
+- order the data points (from minimal to maximal)
+- the k^th percentile is defined as the `k/100*(n-1) + 1` value
+- median the 50^th percentile
+- quantile:
+    + the minimal
+    + Q1 the 25^th percentile, the first quantile
+    + Q2 the median, the second quantile
+    + Q3 the 75^th percentile, the third quantile
+    + the maximal
+
+-----
+
+What if `i = k/100*(n-1) + 1` is not an integer?
+
+- take the integer which is closest to `i`
+- take the mean of `floor(i)` and `celing(i)` (the left and right integers)
+- take the mean of `floor(i)` and `celing(i)` by weighting the distance (linearly interpolation)
+
+assume the following vector that has been sorted:
+
+```
+1  2  3  4  5  6  7  8  9 10  11  value vector
+0 10 20 30 40 50 60 70 80 90 100  percentile
+    ~ <-
+```
+
+the 12^th percentile (i = 12/100*(11-1) + 1 = 2.2)
+
+- 2
+- 2.5
+- 2 + 0.2*(3-2) = 2.2
+
+```{r}
+quantile(1:11, p = 0.12)
+```
+
+-----
+
+R functions to get descriptive statistics:
+
+```{r}
+set.seed(123456)
+x = rnorm(100)  # sample 100 random data points from standard normal distribution
+mean(x)
+median(x)
+quantile(x)
+quantile(x, p = c(0.05, 0.95))  # percentiles
+```
+
+-----
+
+mean and median are very close for symmetric distribution.
+
+```{r, echo = FALSE}
+plot(density(x))
+abline(v = mean(x), col = "red")
+abline(v = median(x), col = "blue")
+legend("topright", lty = 1, col = c("red", "blue"), 
+	legend = c("mean", "median"))
+```
+
+-----
+
+mean and median can be far from each other for non-symmetric distributions.
+
+
+```{r, echo = FALSE}
+x = rgamma(1e4, 0.5)
+plot(density(x))
+abline(v = mean(x), col = "red")
+abline(v = median(x), col = "blue")
+legend("topright", lty = 1, col = c("red", "blue"), 
+	legend = c("mean", "median"))
+```
+
+So mean or median value can only tell you the "center" location
+of your data, while you cannot make and assumption
+
+## Numeric data 
+
+- measurement of dispersion
+    + Range
+    + Interquartile range
+    + Variance/Standard Deviation
+    + Coefficient of Variation
+
+---
+
+Range is simply $max - min$
+
+```{r}
+x = rnorm(100)
+range(x) # minimal and maximal
+```
+
+---
+
+Interquartile range (IQR) is Q3 - Q1 (75^th percentile - 25^percentile)
+
+```{r}
+quantile(x, 0.75) - quantile(x, 0.25)
+IQR(x)
+```
+
+---
+
+Variance and standard deviation
+
+$var = \frac{1}{n}\sum(x - \mu)^2$
+
+$sd = \sqrt{var}$
+
+```{r}
+var(x)
+sd(x)
+```
+
+---
+
+Coefficient of Variation (CV)
+
+dispersion relative to the level of the data
+
+```{r}
+sd(x)/mean(x)
+```
+
+## Visualize the descriptive statistiics
+
+```{r, eval = FALSE}
+boxplot(x)
+```
+
+```{r, echo = FALSE, fig.height = 3}
+par(mar = c(1, 4, 1, 1))
+stat = boxplot(x)
+text(1.22, stat$stats[1], "lower whisker", adj = c(0, 0.5))
+text(1.22, stat$stats[2], "25^th percentile", adj = c(0, 0.5))
+text(1.22, stat$stats[3], "median", adj = c(0, 0.5))
+text(1.22, stat$stats[4], "75th percentile", adj = c(0, 0.5))
+text(1.22, stat$stats[5], "upper whisker", adj = c(0, 0.5))
+points(x = rep(0.6 + runif(length(x), -0.05, 0.05)), x)
+```
+
+- lower wisker is the minimal value >= Q1 - 1.5*IQR
+- upper wisker is the maximal value <= Q3 + 1.5*IQR
+- values outside of the wiskers are outliers
+
+## scale your data
+
+With descriptive statistics, we can scale our data.
+
+- make vectors comparable (in a same scale)
+- some analysis needs the data to be scaled
+
+```{r}
+x1 = rnorm(10, mean = 4, sd = 3)
+x2 = rnorm(10, mean = -1, sd = 1)
+```
+
+```{r, echo = FALSE, fig.height = 3}
+par(mar = c(4, 4, 1, 1))
+plot(x1, y = rep(1, 10), xlim = range(c(x1, x2)), ylim = c(0, 3), pch = 16, col = "red")
+points(x2, y = rep(2, 10), pch = 16, col = "green")
+```
+
+---
+
+z-score scaling
+
+$x' = \frac{x - \mu}{\sigma}$
+
+- mean is enforced to be zero
+- sd is enforced to be 1
+
+```{r}
+y1 = (x1 - mean(x1))/sd(x1)
+y2 = (x2 - mean(x2))/sd(x2)
+```
+
+```{r, echo = FALSE, fig.height = 3}
+par(mar = c(4, 4, 1, 1))
+plot(y1, y = rep(1, 10), xlim = range(c(y1, y2)), ylim = c(0, 3), pch = 16, col = "red")
+points(y2, y = rep(2, 10), pch = 16, col = "green")
+```
+
+----
+
+standardization
+
+$x' = frac{x - min}{max - min}$
+
+```{r}
+y1 = (x1 - min(x1))/(max(x1) - min(x1))
+y2 = (x2 - min(x2))/(max(x2) - min(x2))
+```
+
+
+```{r, echo = FALSE}
+par(mar = c(4, 4, 1, 1))
+plot(y1, y = rep(1, 10), xlim = range(c(y1, y2)), ylim = c(0, 3), pch = 16, col = "red")
+points(y2, y = rep(2, 10), pch = 16, col = "green")
+```
+
+
+## Making distributions
+
+Besides the descriptive statistics, we always need to make the distribution to see
+what exactly the data looks like.
+
+Histogram is a frequency-based approach
+
+```{r, fig.height = 4}
+x = rnorm(100)
+hist(x)
+```
+
+---
+
+Density is a more exact way to estimate the real distribution based on `x` (
+assume `x` is a small sample from the population)
+
+```{r}
+plot(density(x))
+```
+
+## correlation
+
+- Pearson correlation
+- Spearman correlation (rank-based correlation)
+
+```{r}
+x = runif(10)
+y = x + rnorm(10, sd = 0.5)
+cor(x, y)
+cor(x, y, method = "spearman")
+```
+
+---
+
+It is always a good idea to plot the correlation.
+
+```{r}
+plot(x, y)
+```
+
+---
+
+Spearman correlation is good at non-linear correlation
+
+```{r}
+x = runif(10, max = 5)
+y = x^10
+cor(x, y)
+cor(x, y, method = "spearman")
+```
+
+----
+
+Spearman correlation is robust to outliers
+
+```{r}
+set.seed(1234)
+x = runif(10); x[10] = 100
+y = runif(10); y[10] = 100
+cor(x, y)
+cor(x, y, method = "spearman")
+cor(x[1:9], y[1:9])
+cor(x[1:9], y[1:9], method = "spearman")
+```
+
+---
+
+```{r}
+par(mfrow = c(1, 2))
+plot(x, y)
+plot(x[1:9], y[1:9], main = "remove the outlier")
+```
+
+## outliers
+
+Outlier is a basic problem in data anlaysis, but in most cases, people ignore it.
+
+Following statistics are significantly affected by outliers:
+
+- mean/var/sd/cv/range/z-score scaling/Pearson correlation
+
+Following statistics are robust to outliers:
+
+- median/percentiles/IQR/Spearman correlation
+
+
+## Hypothesis tests
+
+two-sample test
+
+- t-test
+- rank-based test (Wilcoxon signed-rank test)
+- permutation-based test
+
+Why do we need to do test?
+
+- the data points are just a small portion of data that are sampled from the
+  population, and we don't know how much it can or can not represent the
+  population. The test can tell us the probability of correctly make our
+  conclusions.
+
+## t-test
+
+parameteric test
+
+- Data must follow normal distribution (why it is called parametric)
+
+Main steps:
+
+- a statistic for which the test is applied on
+- null hypothesis H0 (something we want to reject)
+- alternative hypothesis H1 (something makes sense to us)
+
+the test gives you a probability of "rejecting H0" is wrong.
+
+---
+
+Assume `x1` and `x2` are from normal distribution, the t-statistic is defined as
+
+$t = \frac{\bar{X}_1 - \bar{X}_2}{s_p\sqrt{\frac{2}{n}}}$
+
+$s_p = \sqrt{\frac{s^2_{X_1}+s^2_{X_2}}{2}}$
+
+t-statistic follows a t-distribution and we can calculate
+
+P(T >= |t|)
+
+---
+
+Apply two-sample t-test with `t.test()` function.
+
+```{r}
+x1 = rnorm(10, mean = -1)
+x2 = rnorm(10, mean = 1)
+t.test(x1, x2)
+```
+
+---
+
+Boxplot can be used to visualize the difference:
+
+```{r}
+boxplot(list(x1, x2))
+```
+
+## rank-based test
+
+non-parametric test
+
+- no assumption of the distribution of the data
+- data points reduced to rank
+- still there is approximation of the distribution of the statisitcs
+
+---
+
+`wilcox.test()` function:
+
+
+```{r}
+wilcox.test(x1, x2)
+```
+
+## permutation-based test
+
+It complete learns from the data.
+
+- still need a statistic (the design of the statistic won't affect p-value too much)
+
+steps are:
+
+- design a statistic, e.g. mean difference s0 = |mean(x1) - mean(x2)|
+- pool `x1` and `x2` and random 10 data points for each of the two groups, and 
+  calculate s0_random for this random dataset
+- repeat for 1000 times and we have 1000 s0_random values
+- the p-value is calculated as in s0_random, the fraction of those are larger than s0.
+
+---
+
+```{r}
+s0 = abs(mean(x1) - mean(x2))
+
+n = 1000
+s0_random = numeric(n)
+for(i in 1:1000) {
+	x_random = sample(c(x1, x2), 20)
+	s0_random[i] = abs(mean(x_random[1:10]) - mean(x_random[11:20]))
+}
+sum(s0_random > s0)/n
+```
+

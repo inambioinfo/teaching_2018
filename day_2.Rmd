@@ -1,0 +1,404 @@
+Day 2 Exercise
+===================================
+
+```{r, echo = FALSE}
+library(knitr)
+knitr::opts_chunk$set(
+    error = FALSE,
+    message = FALSE,
+    warning = FALSE)
+options(width = 110)
+```
+
+# Basic statistics for analysis
+
+In this part, we will practise basic statistical analysis for RNASeq data.
+Please note, these analysis approaches are general and can be applied to any
+type of data sets.
+
+In most cases, the input data format is a matrix. In this exercise, we will
+use a TCGA glioblastoma dataset. The original data source is from
+https://tcga-data.nci.nih.gov/docs/publications/gbm_exp/.
+
+We will use the following two files: 
+
+- [TCGA_unified_CORE_ClaNC840.txt](https://tcga-data.nci.nih.gov/docs/publications/gbm_exp/TCGA_unified_CORE_ClaNC840.txt): Expression values and subtype calls for the Core TCGA samples using the
+  unified scaled data
+- [unifiedScaled.txt](https://tcga-data.nci.nih.gov/docs/publications/gbm_exp/unifiedScaled.txt): unified gene expression estimate for 202 samples and 11,861 genes
+
+In this analysis, researchers predicted four subtypes based on RNASeq data. Here we assume the predicted subtypes
+are known subtypes. 
+
+## Read the data
+
+Before doing any analysis, importing or reading data into R is an important
+step. Sometimes it is quite straightforward and smooth, but othertimes you
+might have problems or errors. Knowing how to solve these small but annoying
+problems will speed up your analysis and give you a good mood for that day.
+
+If it is the first time that you see the data, the first thing is to have a
+simple look at how the format is. Most datasets are in a format of plain text
+(or a zipped file that you need to uncomparess it in advance). You can open it in
+a text editor or Excel (if the size of the file is small) or run following command. 
+`head` prints the first 10 lines in the file.
+
+```
+# If you use linux or mac
+head TCGA_unified_CORE_ClaNC840.txt
+head unifiedScaled.txt
+```
+
+We can see the two files are all table-like files. Now we can read it by
+the `read.table()` function. You might image `read.table()` is a magic function
+that it automatically converts the file properly into R. If you run following command,
+you will have an error.
+
+```{r error = TRUE, purl = FALSE}
+df = read.table("TCGA_unified_CORE_ClaNC840.txt")
+```
+
+`read.table()` has some defaults for some parameters. The default separator is
+a single space while in `TCGA_unified_CORE_ClaNC840.txt`, the second
+column has some values containing spaces (try command `cut -f2
+TCGA_unified_CORE_ClaNC840.txt | sort | uniq` under linux or mac). In this case, we need to
+explictly set the separator to tab `\t`.
+
+```{r}
+df = read.table("TCGA_unified_CORE_ClaNC840.txt", sep = "\t")
+```
+
+After successfully reading the data into R, the next thing is to see how it looks in R.
+Simply use `head()` function to print the first 10 rows:
+
+```{r, eval = FALSE}
+head(df)
+```
+
+In `df`, the first two rows are what we need, which are sample names and
+subtypes. The first two columns are not needed here and we need to exclude
+them.
+
+We can subset `df` to get the first two rows. Note `-(1:2)` means to exclude the first two columns.
+
+```{r}
+sample_id = df[1, -(1:2)]
+subtype = df[2, -(1:2)]
+```
+
+We need to double check the format of `sample_id` and `subtype`:
+
+```{r, eval = FALSE}
+sample_id
+```
+
+You might wonder why `sample_id` is in such a strange format. The reason is
+`df` is a data frame and subsetting the data frame by rows will also give you
+a data frame, even when the data frame only has one row.
+
+```{r}
+is.data.frame(sample_id)
+```
+
+To convert a one-row data frame to a vector, you need to first convert it to a
+one-row matrix then to a vector.
+
+```{r}
+sample_id = as.vector(as.matrix(sample_id))
+subtype = as.vector(as.matrix(subtype))
+# you can check the value of sample_id and subtype
+```
+
+Here `subtype` is called **annotation** (of samples) in the analysis. Normally,
+the annotations are stored as a data frame where rows correspond to samples.
+
+```{r}
+anno = data.frame(subtype = subtype)
+rownames(anno) = sample_id
+head(anno)
+```
+
+As you can see, the sample nams are assigned as the row names of the
+annotation data frame `anno`. Later we can use it to correspond to the
+expression matrix to make sure the columns in expression matrix and rows in
+annotation data frame as the same.
+
+For `unifiedScaled.txt`, it is quite clean (which means there are only gene
+names, sample names and expression matrix in it) and simply use `read.table()`
+function:
+
+```{r}
+mat = read.table("unifiedScaled.txt")
+mat[1:2, 1:2]
+```
+
+`read.table()` always returns a data frame, which means `mat` is actually a
+data frame. Although in some analysis, it won't matter whether the input is a
+matrix or a data frame, but for some other analysis, the input is enforced to
+be a matrix (e.g. clustering). Thus, we need to convert it to a matrix.
+
+```{r}
+mat = as.matrix(mat)
+```
+
+OK, now we successfully read the annotation as well as the main matrix into R
+and format them properly. To make further analysis, one curcial thing is to check
+whether the expression matrix and the annotation data frame are corresponded.
+
+```{r}
+intersect(colnames(mat), rownames(anno))
+```
+
+Nothing in common?! If you check the value of `colnames(mat)` and `rownames(ano)`, you 
+will find the format of the sample names are different.
+
+```{r}
+colnames(mat)[1:2]
+rownames(anno)[1:2]
+```
+
+This is another annoying thing caused by `read.table()`. By default, it will automatically
+convert a column name like `TCGA-12-0620-01A-01` to `TCGA.12.0620.01A.01` for historical reason.
+We always need to set `check.names = FALSE` in `read.table()` to avoid such conversion.
+
+```{r}
+mat = read.table("unifiedScaled.txt", check.names = FALSE)
+mat = as.matrix(mat)
+mat[1:2, 1:2]
+intersect(colnames(mat), rownames(anno))
+```
+
+We check how many samples are there in `mat` and in `anno`:
+
+```{r}
+ncol(mat)
+nrow(anno)
+```
+
+The numbers are not the same and maybe the order of the samples are also
+different. We need to take the common samples in the two objects:
+
+```{r}
+cn = intersect(colnames(mat), rownames(anno))
+mat = mat[, cn]
+anno = anno[cn, , drop = FALSE]
+```
+
+Note since `mat` has column names and `anno` has row names, `cn` can be used
+as character indices for reordering and subsetting objects.
+
+You might note when subsetting `anno`, we additionally add `drop = FALSE` argument. This is another
+annoying default behavior of R. Since the original `anno` only has one column, doing `anno[cn, ]` will
+degenerate to a vector (or in other words, the dimension is droppped.)
+
+Now `mat` and `anno` are in nice and correct format and can be used for downstream analysis.
+
+Last but not the least, since we spend so much effort on cleaning the data, we actually can save `anno`
+and `mat` into files which is also good if you want to re-perform the analysis or share the data
+with other collaborators.
+
+```{r, eval = FALSE}
+save(mat, anno, file = ...)  # use load() to read back 
+saveRDS(mat, file = ...)  # use readRDS() to read back 
+saveRDS(anno, file = ...)  # use readRDS() to read back 
+```
+
+## General analysis
+
+Now we know `mat` contains expression data, but what exactly does the expression value look like?
+Or in other words, how does the distribution of the gene expression look like? The most straightforward
+way that a lot of people will do is to look at the distribution.
+
+```{r, fig.width = 12}
+par(mfrow = c(1, 2))  # a layout of one row and two columns
+hist(mat[, 1]) # the first column
+plot(density(mat[, 1]))
+par(mfrow = c(1, 1)) # reset the layout, you don't need this line if you just close the graphic window
+```
+
+Siimlarlly, you can make density plot for other samples.
+
+According to the density plot, we see the values distributed in both positive and negative values (why
+the expression values have negative values?). According to the file name of the expression matrix, we 
+can infer the gene expression are "scaled". Scaling is an approach that converts the data and put data 
+scale of all genes into a similar level.
+
+We can check the mean value and standard deviation of all genes.
+
+```{r, fig.width = 12 }
+par(mfrow = c(1, 2))
+gene_mean = apply(mat, 1, mean) # use ?apply to check what does apply() do
+plot(gene_mean, col = "#00000080")
+gene_sd = apply(mat, 1, sd)
+plot(gene_sd, col = "#00000080")
+par(mfrow = c(1, 1))
+```
+
+We can see the mean expression of all genes are centered at `y = 0` and the sd are close to 0.5.
+So we can say all the genes are in a similar scale.
+
+To get an impression of how the data distributes, sometimes we don't need the exact the distribution,
+while five quantiles are enough for intepration. Recall we can use `boxplot()` function to visualize
+quantiles.
+
+```{r}
+boxplot(mat[, 1])
+```
+
+Atually you can put mulitplt boxplots in one plot:
+
+```{r}
+par(las = 3, mar = c(12, 4, 4, 1))  # type ?par to find out what do las and mar mean
+boxplot(mat[, 1:10])
+```
+
+It seems there are too many outliers that comparess the boxes too small. The outliers can be
+removed by setting `outline = FALSE`.
+
+```{r}
+boxplot(mat[, 1:10], outline = FALSE)
+```
+
+Recall to get the numbers of the quantiles, use `quantile()` function.
+
+```{r}
+quantile(mat[, 1])
+```
+
+We can calculate correlation between two samples:
+
+```{r}
+cor(mat[, 1], mat[, 2])
+```
+
+If you put the matrix into `cor()`, it returns a correlation matrix.
+
+```{r}
+cor_mat = cor(mat)
+dim(cor_mat)
+```
+
+Normally we visualize it as a heatmap. If you don't have **ComplexHeatmap** installed, try following 
+commands:
+
+```{r, eval = FALSE}
+install.packages("https://cran.r-project.org/src/contrib/circlize_0.4.5.tar.gz", repos = NULL)
+install.packages("http://bioconductor.org/packages/devel/bioc/src/contrib/ComplexHeatmap_1.99.3.tar.gz", repos = NULL)
+```
+
+Following means we make a heatmap for `cor_mat` and use `anno` as annotation on top and left of the heatmap.
+Note the colors for annotations are randomly assigned.
+
+```{r}
+library(ComplexHeatmap)
+Heatmap(cor_mat, top_annotation = HeatmapAnnotation(df = anno),
+	left_annotation = rowAnnotation(df = anno),
+	show_row_names = FALSE, show_column_names = FALSE)
+```
+
+Next we will do hypothesis test on samples only in two subtypes (Proneural and Mesenchymal).
+We first get a subset from `mat` and `anno`.
+
+```{r}
+l = anno$subtype %in% c("Proneural", "Mesenchymal")
+mat2 = mat[, l]
+anno2 = anno[l, , drop = FALSE]
+anno2$subtype = factor(as.character(anno2$subtype), levels = c("Proneural", "Mesenchymal"))
+identical(colnames(mat2), rownames(anno2))
+```
+
+Now we want to test how differential the gene "CREB3L1" is in comparison of Proneural vs Mesenchymal.
+We first get the expression of CREB3L1 and assign the subtype annotation to another variable so that
+we don't need to type `anno2$subtyep` too many times in following code.
+
+```{r}
+gene = "CREB3L1"  # ELMO2
+x = mat2[gene, ]  # note `gene` is a character and can be used as character index
+subtype = anno2$subtype
+# you can check the value of `x` and `subtype`
+```
+
+Perform two-sample t-test with default settings.
+
+```{r}
+t.test(x ~ subtype)
+```
+
+`x ~ subtyep` is called a formula in R. It basically means performing test against `subtype` (of course,
+`subtype` must be a categorical variable). An alternative way to use `t.test()` is to provide two vectors,
+where each for one subtype.
+
+```{r}
+t.test(x[subtype == "Proneural"], x[subtype == "Mesenchymal"])
+```
+
+Use boxplot to visualize how different the two groups are. Here we also use "formula" in `boxplot()`.
+
+```{r}
+boxplot(x ~ subtype)
+# same as:
+# boxplot(list(Proneural = x[subtype == "Proneural"], 
+#              Mesenchymal = x[subtype == "Mesenchymal"]))
+```
+
+Perform Wilcox rank test is similar as t-test:
+
+```{r}
+wilcox.test(x ~ subtype)
+# you can also do:
+# wilcox.test(x[subtype == "Proneural"], x[subtype == "Mesenchymal"])
+```
+
+Finally, we implement the permutation-based test. Recall we need to design a statistic for the
+permutation test. In following, the statistic is defined as:
+
+$s = |\frac{\mu_1}{\sigma_1} - \frac{\mu_2}{\sigma_2}|$
+
+We implement the calculation of permutation statistic as a simple function so that it can be
+used multiple times:
+
+```{r}
+get_score = function(x1, x2) {
+	abs(mean(x1)/sd(x1) - mean(x2)/sd(x2))
+}
+```
+
+The score for the real data (not permutated)
+
+```{r}
+score = get_score(x[subtype == "Proneural"], x[subtype == "Mesenchymal"])
+score
+```
+
+Next we random permutation `subtype` to produce the null hypothesis that the expression of this
+gene is not correlated to `subtype`.
+
+```{r}
+n = 1000
+score_random = numeric(n)
+
+for(i in 1:n) {
+	subtype_random = sample(subtype, length(subtype))
+	score_random[i] = get_score(x[subtype_random == "Proneural"], x[subtype_random == "Mesenchymal"])
+}
+```
+
+`score_random` corresponds that is called "null distribution". We can see how different between `score`
+and `score_random` by looking at the position of `score` in `score_random`.
+
+
+```{r}
+plot(density(score_random), xlim = c(-0.3, 1.2))
+abline(v = score, col = "red", lwd = 2)
+```
+
+The final p-value is calculated as the probability of `score_random` larger than `score`.
+
+```{r}
+p = sum(score_random > score)/n
+p
+```
+
+Since we only perfrom 1000 permuations, the minimal non-zero p-value is 1/1000 = 0.001, when you see
+a p-value is zero from a permutaiton test, actually it means the p-value < 0.001 while not really 0.
+
+
